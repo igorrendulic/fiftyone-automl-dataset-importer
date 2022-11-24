@@ -1,0 +1,5 @@
+fiftyone
+torch
+torchvision
+google-cloud-storage==2.6.0
+ipywidgets>=7.0.0
