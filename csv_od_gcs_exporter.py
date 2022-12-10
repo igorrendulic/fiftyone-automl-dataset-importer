@@ -54,7 +54,7 @@ class CSVObjectDetectorGoogleStorageBucketExporter(foud.LabeledImageDatasetExpor
         self._labels = None
         self._upload_futures = None
         self.sclient = None
-        self.sbucket = kwargs.get("gcs_bucket")        
+        self.bucket_name = kwargs.get("gcs_bucket")        
         self.dataset = kwargs.get("dataset")
         self.projectId = kwargs.get("gcs_project_id")
         self.classes = kwargs.get("classes")
@@ -113,13 +113,13 @@ class CSVObjectDetectorGoogleStorageBucketExporter(foud.LabeledImageDatasetExpor
 
         self._upload_futures = []
         self.sclient = storage.Client(project=self.projectId)
-        self.sbucket = self.sclient.get_bucket(self.sbucket)
+        self.sbucket = self.sclient.get_bucket(self.bucket_name)
     
     @threaded
     def upload_file(self, image_or_path, upload_img_name):
         blob = self.sbucket.blob(self.dataset + "/" + upload_img_name)
         if blob.exists():
-            return f"gs://{self.sbucket}/{self.dataset}/{upload_img_name}"
+            return f"gs://{self.bucket_name}/{self.dataset}/{upload_img_name}"
 
         if type(image_or_path) is np.ndarray:
             img = Image.fromarray(image_or_path)
@@ -130,7 +130,7 @@ class CSVObjectDetectorGoogleStorageBucketExporter(foud.LabeledImageDatasetExpor
             blob.upload_from_filename(image_or_path)
 
         blob.make_public()
-        return f"gs://{self.sbucket}/{self.dataset}/{upload_img_name}"
+        return f"gs://{self.bucket_name}/{self.dataset}/{upload_img_name}"
 
     def export_sample(self, image_or_path, label, metadata=None):
         """Exports the given sample to the dataset.
@@ -175,15 +175,14 @@ class CSVObjectDetectorGoogleStorageBucketExporter(foud.LabeledImageDatasetExpor
                     bBox = detection["bounding_box"]
                     items.append((
                         determined_dataset,
-                        img_name,
+                        f"gs://{self.bucket_name}/{self.dataset}/{img_name}",
                         lbl,
-                        bBox[0],
-                        bBox[1],
+                        bBox[0], # x-min
+                        bBox[1], # y-min
                         '',
                         '',
-                        bBox[2],
-                        bBox[3],
-                        '',
+                        bBox[2] + bBox[0], # width converted to x-max
+                        bBox[3] + bBox[1], # height converted to y-max
                         '',
                     ))
 
@@ -212,5 +211,6 @@ class CSVObjectDetectorGoogleStorageBucketExporter(foud.LabeledImageDatasetExpor
         output_csv = output.getvalue()
         blob = self.sbucket.blob(self.dataset + "/labels.csv")
         blob.upload_from_string(output_csv, content_type='text/csv')
+        blob.make_public()
         
         tp.shutdown()
